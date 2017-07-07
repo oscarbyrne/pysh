@@ -1,0 +1,41 @@
+function setup {
+	local FIFO=$(uuidgen)
+	mkfifo $FIFO
+	echo "My FIFO is: $FIFO"
+}
+
+function push {
+	local PID=$1
+	local FIFO=$2
+	local cmd=$3
+	kill -SIGIO $PID
+	create_payload "$3" > "$FIFO"
+}
+
+function create_payload {
+	local var=$(compgen -v)
+	local cmd=$1
+	local ESC="\33"
+	local GS="\35"
+	local RS="\36"
+	local US="\37"
+	function escape {
+		local str=$1
+		local str=${str//$GS/$ESC$GS}
+		local str=${str//$RS/$ESC$RS}
+		local str=${str//$US/$ESC$US}
+		printf "$str"
+	}
+	local cmd=$(escape "$cmd")
+	local var=$(escape "$var")
+	local var=($var)
+	local var=(${var[@]/_})
+	for name in "${var[@]}"
+	do
+		local value="${!name}"
+		local env_payload+=$(
+			printf "%s%b%s%b" "$name" "$US" "$value" "$RS"
+		)
+	done
+	printf "%s%b%b" "$cmd" "$GS" "$env_payload"
+}
