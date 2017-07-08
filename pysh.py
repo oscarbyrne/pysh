@@ -8,7 +8,11 @@ FIFO = input("Input FIFO: ")
 
 def receive_new_cmd():
 
+    with open(FIFO) as f:
+        raw = f.read()
+
     ESC="\33"
+
     GS="\35"
     RS="\36"
     US="\37"
@@ -16,13 +20,6 @@ def receive_new_cmd():
     def split_escaped(string, delim):
         split = re.split('(?<!{}){}'.format(ESC, delim), string)
         return [string.replace(ESC+delim, delim) for string in split]
-    
-    with open(FIFO) as f:
-        raw = f.read()
-
-    # cmd, env = raw.split(GS)
-    # env = env.split(RS)[:-1]
-    # env = dict([kv.split(US) for kv in env])
 
     cmd, env = split_escaped(raw, GS)
     env = split_escaped(env, RS)[:-1]
