@@ -9,34 +9,45 @@ function push {
 	local FIFO=$2
 	local cmd=$3
 	kill -SIGIO $PID
-	create_payload "$3" > "$FIFO"
+	build_json_request "$3" > "$FIFO"
 }
 
-function create_payload {
-	local var=$(compgen -v)
-	local cmd=$1
-	local ESC="\33"
-	local GS="\35"
-	local RS="\36"
-	local US="\37"
-	function escape {
+function build_json_request {
+	local PYSH_COMMAND=$1 # setting here will make it appear in payload
+	local vars=( $(compgen -v) )
+	# functions for building json
+	function to_str {
 		local str=$1
-		local str=${str//$GS/$ESC$GS}
-		local str=${str//$RS/$ESC$RS}
-		local str=${str//$US/$ESC$US}
-		printf "$str"
+		local str=${str//\\/\\\\} # json only has 2 special
+		local str=${str//\"/\\\"} # characters: " and \
+		printf "\"%s\"" "$str"
 	}
-	local cmd=$(escape "$cmd")
-	local var=($var)
-	local var=(${var[@]/_})
-	for name in ${var[@]}
+	function to_pair {
+		local key=$1
+		local val=$2
+		local key=$(to_str "$key")
+		local val=$(to_str "$val")
+		printf "%s:%s" "$key" "$val"
+	}
+	function to_obj {
+		local len=$1 # no way to pass distinct arrays in bash<4
+		shift;		local keys=("${@:1:$len}")
+		shift $len; local vals=("${@:1:$len}")
+		for i in "${!keys[@]}"
+		do
+			local pairs[$i]=$(to_pair "${keys[$i]}" "${vals[$i]}")
+		done
+		local pairs=$( (IFS=,; echo "${pairs[*]}") )
+		printf "{%s}" "$pairs"
+	}
+	function lookup {
+		local name=$1
+		local exp="${name}[*]" # fully expand all variables
+		printf "%s" "${!exp}"
+	}
+	for i in ${!vars[@]}
 	do
-		local exp="${name}[@]"
-		local val="${!exp}"
-		local val=$(escape "$val")
-		local env_payload+=$(
-			printf "%s%b%s%b" "$name" "$US" "$val" "$RS"
-		)
+		local vals[$i]=$(lookup ${vars[$i]})
 	done
-	printf "%s%b%b" "$cmd" "$GS" "$env_payload"
+	to_obj ${#vars[@]} ${vars[@]} "${vals[@]}" # no need to double quote variable names
 }

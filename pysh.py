@@ -2,44 +2,28 @@ import os
 import signal
 import time
 import re
+import json
+import pprint
 
 FIFO = input("Input FIFO: ")
 
 
-def receive_new_cmd():
-
+def receive_payload():
     with open(FIFO) as f:
         raw = f.read()
+    env = json.loads(raw, strict=False) # allow control characters
+    cmd = env['PYSH_COMMAND']
+    return cmd, env
 
-    ESC="\33"
-    GS="\35"
-    RS="\36"
-    US="\37"
-
-    def escaped_split(string, sep):
-        unesc = '(?<!{}){}'.format(ESC, sep)
-        return re.split(unesc, string)
-
-    def unescape(string):
-        return string \
-            .replace(ESC+GS, GS) \
-            .replace(ESC+RS, RS) \
-            .replace(ESC+US, US)
-
-    cmd, env = escaped_split(raw, GS)
-    env = escaped_split(env, RS)[:-1]
-    env = env[:-1]
-    env = [escaped_split(kv, US) for kv in env]
-    env = {unescape(k): unescape(v) for k, v in env}
-
-    print "cmd:", cmd
-    print "env:", env
+def handle_IO():
+    cmd, env = receive_payload()
+    # pysh_env = translate_env(env)
 
 
 def handler(signum, stack):
     try:
         handle = {
-            signal.SIGIO: receive_new_cmd,
+            signal.SIGIO: handle_IO,
         }[signum]
     except KeyError:
         raise RuntimeError("Unexpected signal: {}".format(signum))
@@ -47,7 +31,7 @@ def handler(signum, stack):
         handle()
     
 
-print 'My PID is:', os.getpid()
+print "My PID is:", os.getpid()
 
 signal.signal(signal.SIGIO, handler)
 
