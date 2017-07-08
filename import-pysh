@@ -29,9 +29,10 @@ function create_payload {
 	local cmd=$(escape "$cmd")
 	local var=($var)
 	local var=(${var[@]/_})
-	for name in "${var[@]}"
+	for name in ${var[@]}
 	do
-		local value="${!name}"
+		local expanded="${name}[@]"
+		local value="${!expanded}"
 		local value=$(escape "$value")
 		local env_payload+=$(
 			printf "%s%b%s%b" "$name" "$US" "$value" "$RS"
