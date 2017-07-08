@@ -1,53 +1,70 @@
-function setup {
-	local FIFO=$(uuidgen)
-	mkfifo $FIFO
-	echo "My FIFO is: $FIFO"
-}
+function pysh {
+	
+	PYSH_COMMAND=$1
+	[ -z $PYSH_SESSION ] && start_session
+	kill -SIGIO $(get_ppid)
+	record_env > $(get_fifo)
 
-function push {
-	local PID=$1
-	local FIFO=$2
-	local cmd=$3
-	kill -SIGIO $PID
-	build_json_request "$3" > "$FIFO"
-}
-
-function build_json_request {
-	local PYSH_COMMAND=$1 # setting here will make it appear in payload
-	local vars=( $(compgen -v) )
-	# functions for building json
-	function to_str {
+	function start_session {
+		PYSH_SESSION=$(uuidgen)
+		echo "New session: " $PYSH_SESSION
+		mkdir -p $(get_pdir)
+		mkfifo $(get_fifo)
+		# python "pysh.py" "$PYSH_SESSION"
+	}
+	function close_session {
+		kill $(get_ppid)
+		rm -rf $(get_pdir)
+		unset PYSH_SESSION
+	}
+	function get_pdir {
+		printf "/tmp/pysh/$PYSH_SESSION"
+	}
+	function get_fifo {
+		printf "$(get_pdir)/PYSH_PIPE"
+	}
+	function get_ppid {
+		cat "$(get_pdir)/PYSH_PID"
+	}
+	function comma_delim {
+		local arr=("$@")
+		(IFS=,; printf "%s" "${arr[*]}")
+	}
+	function to_json_str {
 		local str=$1
 		local str=${str//\\/\\\\} # json only has 2 special
 		local str=${str//\"/\\\"} # characters: " and \
 		printf "\"%s\"" "$str"
 	}
-	function to_pair {
-		local key=$1
-		local val=$2
-		local key=$(to_str "$key")
-		local val=$(to_str "$val")
-		printf "%s:%s" "$key" "$val"
-	}
-	function to_obj {
-		local len=$1 # no way to pass distinct arrays in bash<4
-		shift;		local keys=("${@:1:$len}")
-		shift $len; local vals=("${@:1:$len}")
-		for i in "${!keys[@]}"
+	function to_json_arr {
+		local arr=("$@")
+		for i in "${!arr[@]}"
 		do
-			local pairs[$i]=$(to_pair "${keys[$i]}" "${vals[$i]}")
+			local arr[$i]=$(to_json_str "${arr[$i]}")
 		done
-		local pairs=$( (IFS=,; echo "${pairs[*]}") )
-		printf "{%s}" "$pairs"
+		printf "[%s]" $(comma_delim "${arr[@]}")
 	}
-	function lookup {
+	function to_var_record {
 		local name=$1
-		local exp="${name}[*]" # fully expand all variables
-		printf "%s" "${!exp}"
+		if [[ "$(declare -p $name)" =~ "declare -a" ]]
+		then
+			local exp=${name}[@]
+		    local value=$(to_json_arr "${!exp}")
+		else
+		    local value=$(to_json_str "${!name}")
+		fi
+		printf "%s:%s" $(to_json_str $name) "$value"
 	}
-	for i in ${!vars[@]}
-	do
-		local vals[$i]=$(lookup ${vars[$i]})
-	done
-	to_obj ${#vars[@]} ${vars[@]} "${vals[@]}" # no need to double quote variable names
+	function to_json_obj {
+		local records=("$@")
+		printf "{%s}" $(comma_delim ${records[@]})
+	}
+	function record_env {
+		local vars=( $(compgen -v) )
+		for i in ${!vars[@]}
+		do
+			local records[$i]=$(to_var_record ${vars[$i]})
+		done
+		to_json_obj ${records[@]}
+	}
 }

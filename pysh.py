@@ -1,15 +1,13 @@
+import sys
 import os
 import signal
-import time
-import re
 import json
+import time
 import pprint
-
-FIFO = input("Input FIFO: ")
 
 
 def receive_payload():
-    with open(FIFO) as f:
+    with open(FIFO, 'r') as f:
         raw = f.read()
     env = json.loads(raw, strict=False) # allow control characters
     cmd = env['PYSH_COMMAND']
@@ -17,6 +15,8 @@ def receive_payload():
 
 def handle_IO():
     cmd, env = receive_payload()
+    pprint.pprint(cmd)
+    pprint.pprint(env)
     # pysh_env = translate_env(env)
 
 
@@ -29,12 +29,24 @@ def handler(signum, stack):
         raise RuntimeError("Unexpected signal: {}".format(signum))
     else:
         handle()
+
+def main():
+    while(True):
+        print "sleeping."
+        time.sleep(3)
+
+
+if __name__ == '__main__':
+
+    PYSH_SESSION = sys.argv[1]
+    PDIR = "/tmp/pysh/{}".format(PYSH_SESSION)
+    FIFO = "{}/PYSH_PIPE".format(PDIR)
+    PPID = "{}/PYSH_PID".format(PDIR)
     
+    with open(PPID, 'w') as f:
+        f.write(str(os.getpid()))
 
-print "My PID is:", os.getpid()
+    signal.signal(signal.SIGIO, handler)
 
-signal.signal(signal.SIGIO, handler)
+    main()
 
-while(True):
-    print "sleeping."
-    time.sleep(3)
