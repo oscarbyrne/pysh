@@ -1,16 +1,12 @@
 function pysh {
-	
-	PYSH_COMMAND=$1
-	[ -z $PYSH_SESSION ] && start_session
-	kill -SIGIO $(get_ppid)
-	record_env > $(get_fifo)
-
 	function start_session {
 		PYSH_SESSION=$(uuidgen)
 		echo "New session: " $PYSH_SESSION
 		mkdir -p $(get_pdir)
 		mkfifo $(get_fifo)
-		# python "pysh.py" "$PYSH_SESSION"
+		python "pysh.py" "$PYSH_SESSION" &
+		sleep 5 # to do: python should signal ready to respond. Shove PID through pipe?
+		trap close_session EXIT INT TERM
 	}
 	function close_session {
 		kill $(get_ppid)
@@ -24,7 +20,7 @@ function pysh {
 		printf "$(get_pdir)/PYSH_PIPE"
 	}
 	function get_ppid {
-		cat "$(get_pdir)/PYSH_PID"
+		pgrep -f "python pysh.py $PYSH_SESSION"
 	}
 	function comma_delim {
 		local arr=("$@")
@@ -46,10 +42,10 @@ function pysh {
 	}
 	function to_var_record {
 		local name=$1
-		if [[ "$(declare -p $name)" =~ "declare -a" ]]
+		if [[ "$(declare -p $name)" =~ "declare -a" ]] # if array
 		then
 			local exp=${name}[@]
-		    local value=$(to_json_arr "${!exp}")
+		    local value=$(to_json_arr "${!exp}") # expand fully
 		else
 		    local value=$(to_json_str "${!name}")
 		fi
@@ -67,4 +63,9 @@ function pysh {
 		done
 		to_json_obj ${records[@]}
 	}
+
+	PYSH_COMMAND=$1
+	[ -z $PYSH_SESSION ] && start_session
+	kill -SIGIO $(get_ppid)
+	record_env > $(get_fifo)
 }

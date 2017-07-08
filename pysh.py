@@ -3,6 +3,7 @@ import os
 import signal
 import json
 import time
+import logging
 import pprint
 
 
@@ -15,8 +16,8 @@ def receive_payload():
 
 def handle_IO():
     cmd, env = receive_payload()
-    pprint.pprint(cmd)
-    pprint.pprint(env)
+    logging.debug(pprint.pformat(cmd))
+    logging.debug(pprint.pformat(env))
     # pysh_env = translate_env(env)
 
 
@@ -32,8 +33,7 @@ def handler(signum, stack):
 
 def main():
     while(True):
-        print "sleeping."
-        time.sleep(3)
+        pass
 
 
 if __name__ == '__main__':
@@ -41,11 +41,9 @@ if __name__ == '__main__':
     PYSH_SESSION = sys.argv[1]
     PDIR = "/tmp/pysh/{}".format(PYSH_SESSION)
     FIFO = "{}/PYSH_PIPE".format(PDIR)
-    PPID = "{}/PYSH_PID".format(PDIR)
-    
-    with open(PPID, 'w') as f:
-        f.write(str(os.getpid()))
+    PLOG = "{}/PYSH_LOG".format(PDIR)
 
+    logging.basicConfig(filename=PLOG,level=logging.DEBUG)
     signal.signal(signal.SIGIO, handler)
 
     main()
