@@ -12,18 +12,25 @@ def receive_new_cmd():
         raw = f.read()
 
     ESC="\33"
-
     GS="\35"
     RS="\36"
     US="\37"
 
-    def split_escaped(string, delim):
-        split = re.split('(?<!{}){}'.format(ESC, delim), string)
-        return [string.replace(ESC+delim, delim) for string in split]
+    def escaped_split(string, sep):
+        unesc = '(?<!{}){}'.format(ESC, sep)
+        return re.split(unesc, string)
 
-    cmd, env = split_escaped(raw, GS)
-    env = split_escaped(env, RS)[:-1]
-    env = dict([split_escaped(kv, US) for kv in env])
+    def unescape(string):
+        return string \
+            .replace(ESC+GS, GS) \
+            .replace(ESC+RS, RS) \
+            .replace(ESC+US, US)
+
+    cmd, env = escaped_split(raw, GS)
+    env = escaped_split(env, RS)[:-1]
+    env = env[:-1]
+    env = [escaped_split(kv, US) for kv in env]
+    env = {unescape(k): unescape(v) for k, v in env}
 
     print "cmd:", cmd
     print "env:", env
