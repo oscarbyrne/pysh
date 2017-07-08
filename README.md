@@ -19,9 +19,7 @@ pysh value = json.load(file)[key]
 
 oh no you want to reverse an array...
 ```bash
-for (( idx=${#arr[@]}-1 ; idx>=0 ; idx-- )) ; do
-    echo "${arr[idx]}"
-done
+arr=$(for (( idx=${#arr[@]}-1 ; idx>=0 ; idx-- )); do echo "${arr[idx]}"; done)
 ```
 
 pysh to the rescue.
